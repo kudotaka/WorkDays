@@ -120,15 +120,28 @@ public class WorkDaysApp : ConsoleAppBase
                     }
                     IXLCell cellWorkDaysColumn = sheet.Cell(r, workDaysColumn);
 
-                    string workDays = cellWorkDaysColumn.GetValue<string>();
-                    logger.ZLogInformation($"工事日数:{workCount}, 工事日:{workDays}");
+                    string workDays = replaceDateTimeString(cellWorkDaysColumn.GetValue<string>());
+                    logger.ZLogTrace($"工事日数:{workCount}, 工事日:{workDays}");
                     MyWorkDay wd = new MyWorkDay();
                     wd.workDayCount = workCount;
                     List<DateTime> listDateTime = new List<DateTime>();
                     foreach (var day in workDays.Split("|"))
                     {
-                        DateTime dt = DateTime.Parse(day);
-                        listDateTime.Add(dt);
+                        try
+                        {
+                            DateTime dt = DateTime.Parse(day);
+                            listDateTime.Add(dt);
+                        }
+                        catch (FormatException fe)
+                        {
+                            isAllPass = false;
+                            logger.ZLogError($"DateTime.Parse() exception:{fe.ToString()}");
+                        }
+                        catch (System.Exception)
+                        {
+                            isAllPass = false;
+                            throw;
+                        }
                     }
                     wd.workDays = listDateTime;
                     wd.siteNumber = sheet.Cell(r, siteNumberColumn).Value.ToString();
@@ -150,6 +163,9 @@ public class WorkDaysApp : ConsoleAppBase
 
 //== check
         checkWorkDayCount();
+
+//== check
+        checkWorkDayAtDayOfWeek();
 
 //== finish
         if (isAllPass)
@@ -173,7 +189,7 @@ public class WorkDaysApp : ConsoleAppBase
             else
             {
                 isError = true;
-                logger.ZLogError($"不一致エラー siteNumber:{workDay.siteNumber},siteName:{workDay.siteName}");
+                logger.ZLogError($"不一致エラー 拠点番号:{workDay.siteNumber},拠点名:{workDay.siteName},工事日数:{workDay.workDayCount},工事日:{convertDateTimeToDate(workDay.workDays)}");
             }
         }
         if (isError)
@@ -186,6 +202,62 @@ public class WorkDaysApp : ConsoleAppBase
             logger.ZLogInformation($"[OK] 工事日数と工事日の日数の不一致はありませんでした");
         }
         logger.ZLogInformation($"== end 工事日数と工事日の日数一致の確認 ==");
+    }
+
+    private void checkWorkDayAtDayOfWeek()
+    {
+        logger.ZLogInformation($"== start 工事日と曜日の確認 ==");
+        bool isError = false;
+        Dictionary<string,DateTime> dicPublicHolidays = new Dictionary<string, DateTime>();
+        string publicHolidaysInJapan = config.Value.PublicHolidaysInJapan;
+        foreach (var holiday in publicHolidaysInJapan.Split('|'))
+        {
+            dicPublicHolidays.Add(holiday, DateTime.Parse(holiday));
+        }
+
+        foreach (var workDay in listMyWorkDay)
+        {
+            foreach (var day in workDay.workDays)
+            {
+                if (dicPublicHolidays.ContainsKey(day.ToString("yyyy/MM/dd")))
+                {
+                    isError = true;
+                    logger.ZLogError($"要注意！ 祝日:{day.ToString("yyyy/MM/dd")},拠点番号:{workDay.siteNumber},拠点名:{workDay.siteName}");
+                }
+                else
+                {
+                    switch (day.DayOfWeek)
+                    {
+                        case DayOfWeek.Sunday:
+                            isError = true;
+                            logger.ZLogError($"要注意！ 日曜:{day.ToString("yyyy/MM/dd")},拠点番号:{workDay.siteNumber},拠点名:{workDay.siteName}");
+                            break;
+                        case DayOfWeek.Saturday:
+                            isError = true;
+                            logger.ZLogError($"要注意！ 土曜:{day.ToString("yyyy/MM/dd")},拠点番号:{workDay.siteNumber},拠点名:{workDay.siteName}");
+                            break;
+                        default:
+                            logger.ZLogTrace($"[checkWorkDayAtDayOfWeek] 平日:{day.ToString("yyyy/MM/dd")}");
+                            break;
+                    }
+                }
+            }
+        }
+
+
+
+
+
+        if (isError)
+        {
+            isAllPass = false;
+            logger.ZLogInformation($"[NG] 工事日と曜日に土日祝が発見されました");
+        }
+        else
+        {
+            logger.ZLogInformation($"[OK] 工事日と曜日に土日祝は含まれていませんでした");
+        }
+        logger.ZLogInformation($"== end 工事日と曜日の確認 ==");
     }
 
     private void printMyWorkDays()
@@ -213,6 +285,11 @@ public class WorkDaysApp : ConsoleAppBase
         return sb.ToString();
     }
 
+    private string replaceDateTimeString(string dateTimeString)
+    {
+        return dateTimeString.Replace(" ","").Replace("、",",").Replace(",","|");
+    }
+
     private string getTime()
     {
         var jstTimeZoneInfo = TimeZoneInfo.FindSystemTimeZoneById("Tokyo Standard Time");
@@ -236,6 +313,7 @@ public class MyConfig
     public int WorkDaysColumn {get; set;} = -1;
     public string FirstExcelSheetName {get; set;} = "";
     public string SecondExcelSheetName {get; set;} = "";
+    public string PublicHolidaysInJapan {get; set;} = "";
 }
 
 public class MyWorkDay
