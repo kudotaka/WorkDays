@@ -208,21 +208,27 @@ public class WorkDaysApp : ConsoleAppBase
     {
         logger.ZLogInformation($"== start 工事日と曜日の確認 ==");
         bool isError = false;
-        Dictionary<string,DateTime> dicPublicHolidays = new Dictionary<string, DateTime>();
+        Dictionary<string,DateTime> dicHolidays = new Dictionary<string, DateTime>();
         string publicHolidaysInJapan = config.Value.PublicHolidaysInJapan;
+        string bussinessHolidays = config.Value.BussinessHolidays;
+logger.ZLogInformation($"[checkWorkDayAtDayOfWeek] {bussinessHolidays}");
         foreach (var holiday in publicHolidaysInJapan.Split('|'))
         {
-            dicPublicHolidays.Add(holiday, DateTime.Parse(holiday));
+            dicHolidays.Add(holiday, DateTime.Parse(holiday));
         }
-
+        foreach (var holiday in bussinessHolidays.Split('|'))
+        {
+            dicHolidays.Add(holiday, DateTime.Parse(holiday));
+        }
+logger.ZLogInformation($"[checkWorkDayAtDayOfWeek] {convertDateTimeToDate(dicHolidays.Values.ToList<DateTime>())}");
         foreach (var workDay in listMyWorkDay)
         {
             foreach (var day in workDay.workDays)
             {
-                if (dicPublicHolidays.ContainsKey(day.ToString("yyyy/MM/dd")))
+                if (dicHolidays.ContainsKey(day.ToString("yyyy/MM/dd")))
                 {
                     isError = true;
-                    logger.ZLogError($"要注意！ 祝日:{day.ToString("yyyy/MM/dd")},拠点番号:{workDay.siteNumber},拠点名:{workDay.siteName}");
+                    logger.ZLogWarning($"要注意！ 休日:{day.ToString("yyyy/MM/dd")},拠点番号:{workDay.siteNumber},拠点名:{workDay.siteName}");
                 }
                 else
                 {
@@ -230,11 +236,11 @@ public class WorkDaysApp : ConsoleAppBase
                     {
                         case DayOfWeek.Sunday:
                             isError = true;
-                            logger.ZLogError($"要注意！ 日曜:{day.ToString("yyyy/MM/dd")},拠点番号:{workDay.siteNumber},拠点名:{workDay.siteName}");
+                            logger.ZLogWarning($"要注意！ 日曜:{day.ToString("yyyy/MM/dd")},拠点番号:{workDay.siteNumber},拠点名:{workDay.siteName}");
                             break;
                         case DayOfWeek.Saturday:
                             isError = true;
-                            logger.ZLogError($"要注意！ 土曜:{day.ToString("yyyy/MM/dd")},拠点番号:{workDay.siteNumber},拠点名:{workDay.siteName}");
+                            logger.ZLogWarning($"要注意！ 土曜:{day.ToString("yyyy/MM/dd")},拠点番号:{workDay.siteNumber},拠点名:{workDay.siteName}");
                             break;
                         default:
                             logger.ZLogTrace($"[checkWorkDayAtDayOfWeek] 平日:{day.ToString("yyyy/MM/dd")}");
@@ -251,7 +257,7 @@ public class WorkDaysApp : ConsoleAppBase
         if (isError)
         {
             isAllPass = false;
-            logger.ZLogInformation($"[NG] 工事日と曜日に土日祝が発見されました");
+            logger.ZLogInformation($"[WARNING] 工事日と曜日に土日祝が発見されました");
         }
         else
         {
@@ -314,6 +320,7 @@ public class MyConfig
     public string FirstExcelSheetName {get; set;} = "";
     public string SecondExcelSheetName {get; set;} = "";
     public string PublicHolidaysInJapan {get; set;} = "";
+    public string BussinessHolidays {get; set;} = "";
 }
 
 public class MyWorkDay
