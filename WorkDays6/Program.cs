@@ -136,7 +136,17 @@ public class WorkDaysApp : ConsoleAppBase
                         try
                         {
                             DateTime dt = DateTime.Parse(day);
-                            listDateTime.Add(dt);
+                            if (listDateTime.Contains(dt))
+                            {
+                                isAllPass = false;
+                                DateTime errDt = new DateTime(1900,1,1);
+                                listDateTime.Add(errDt);
+                                logger.ZLogError($"[ERROR] 重複した日付を発見しました:{day},key:{wd.siteKey},拠点番号:{wd.siteNumber},拠点名:{wd.siteName}");
+                            }
+                            else
+                            {
+                                listDateTime.Add(dt);
+                            }
                         }
                         catch (FormatException)
                         {
@@ -151,6 +161,7 @@ public class WorkDaysApp : ConsoleAppBase
                             throw;
                         }
                     }
+                    listDateTime.Sort();
                     wd.workDays = listDateTime;
                     listMyWorkDay.Add(wd);
                 }
