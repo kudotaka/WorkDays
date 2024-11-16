@@ -1,4 +1,6 @@
-﻿﻿using System.Text;
+﻿﻿using System.Collections.Generic;
+using System.Runtime.InteropServices;
+using System.Text;
 using ClosedXML.Excel;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -61,7 +63,8 @@ public class WorkDaysApp : ConsoleAppBase
     readonly ILogger<WorkDaysApp> logger;
     readonly IOptions<MyConfig> config;
 
-    List<MyWorkDay> listMyWorkDay = new List<MyWorkDay>();
+    Dictionary<string, MyWorkDay> dicFirstMyWorkDay = new Dictionary<string, MyWorkDay>();
+    Dictionary<string, MyWorkDay> dicSecondMyWorkDay = new Dictionary<string, MyWorkDay>();
 
     public WorkDaysApp(ILogger<WorkDaysApp> logger,IOptions<MyConfig> config)
     {
@@ -94,6 +97,12 @@ public class WorkDaysApp : ConsoleAppBase
         int statusColumn = config.Value.StatusColumn;
         int workDayCountColumn = config.Value.WorkDayCountColumn;
         int workDaysColumn = config.Value.WorkDaysColumn;
+        int secondExcelFirstDataRow = config.Value.SecondExcelFirstDataRow;
+        int secondExcelSiteKeyColumn = config.Value.SecondExcelSiteKeyColumn;
+        int secondExcelSiteNameColumn = config.Value.SecondExcelSiteNameColumn;
+        int secondExcelWorkDayCountColumn = config.Value.SecondExcelWorkDayCountColumn;
+        int secondExcelWorkDaysColumn = config.Value.SecondExcelWorkDaysColumn;
+        string ignoreSiteKeySuffix = config.Value.IgnoreSiteKeySuffix;
 
         FileStream fsFirstExcel = new FileStream(firstexcel, FileMode.Open, FileAccess.Read, FileShare.Read);
         using XLWorkbook xlWorkbookFristExcel = new XLWorkbook(fsFirstExcel);
@@ -103,7 +112,7 @@ public class WorkDaysApp : ConsoleAppBase
             if (firstExcelSheetName.Equals(sheet.Name))
             {
                 int lastUsedRowNumber = sheet.LastRowUsed() == null ? 0 : sheet.LastRowUsed().RowNumber();
-                logger.ZLogInformation($"シート名:{sheet.Name}, 最後の行:{lastUsedRowNumber}");
+                logger.ZLogInformation($"firstexcel シート名:{sheet.Name}, 最後の行:{lastUsedRowNumber}");
 
                 for (int r = firstDataRow; r < lastUsedRowNumber + 1; r++)
                 {
@@ -123,13 +132,13 @@ public class WorkDaysApp : ConsoleAppBase
                     IXLCell cellWorkDaysColumn = sheet.Cell(r, workDaysColumn);
 
                     string workDays = replaceDateTimeString(cellWorkDaysColumn.GetValue<string>());
-                    logger.ZLogTrace($"工事日数:{workCount}, 工事日:{workDays}");
                     MyWorkDay wd = new MyWorkDay();
                     wd.workDayCount = workCount;
                     wd.siteNumber = sheet.Cell(r, siteNumberColumn).Value.ToString();
                     wd.siteName = sheet.Cell(r, siteNameColumn).Value.ToString();
                     wd.siteKey = sheet.Cell(r, siteKeyColumn).Value.ToString();
                     wd.status = sheet.Cell(r, statusColumn).Value.ToString();
+                    logger.ZLogTrace($"拠点キー:{wd.siteKey}, 工事日数:{workCount}, 工事日:{workDays}");
                     List<DateTime> listDateTime = new List<DateTime>();
                     foreach (var day in workDays.Split("|"))
                     {
@@ -163,7 +172,11 @@ public class WorkDaysApp : ConsoleAppBase
                     }
                     listDateTime.Sort();
                     wd.workDays = listDateTime;
-                    listMyWorkDay.Add(wd);
+                    if (wd.siteKey.EndsWith(ignoreSiteKeySuffix))
+                    {
+                        continue;
+                    }
+                    dicFirstMyWorkDay.Add(wd.siteKey, wd);
                 }
             }
             else
@@ -172,6 +185,84 @@ public class WorkDaysApp : ConsoleAppBase
             }
         }
 
+        FileStream fsSecondExcel = new FileStream(secondexcel, FileMode.Open, FileAccess.Read, FileShare.Read);
+        using XLWorkbook xlWorkbookSecondExcel = new XLWorkbook(fsSecondExcel);
+        IXLWorksheets sheetsSecondExcel = xlWorkbookSecondExcel.Worksheets;
+        foreach (IXLWorksheet? sheet in sheetsSecondExcel)
+        {
+            if (secondExcelSheetName.Equals(sheet.Name))
+            {
+                int lastUsedRowNumber = sheet.LastRowUsed() == null ? 0 : sheet.LastRowUsed().RowNumber();
+                logger.ZLogInformation($"secondexcel シート名:{sheet.Name}, 最後の行:{lastUsedRowNumber}");
+
+                for (int r = secondExcelFirstDataRow; r < lastUsedRowNumber + 1; r++)
+                {
+                    IXLCell cellWorkDayCount = sheet.Cell(r, secondExcelWorkDayCountColumn);
+                    int workCount = -1;
+                    switch (cellWorkDayCount.DataType)
+                    {
+                        case XLDataType.Number:
+                            workCount = cellWorkDayCount.GetValue<int>();
+                            break;
+                        case XLDataType.Text:
+                            break;
+                        default:
+                            logger.ZLogError($"workCount is NOT type ( Number | Text ) at sheet:{sheet.Name} row:{r}");
+                            continue;
+                    }
+                    IXLCell cellWorkDaysColumn = sheet.Cell(r, secondExcelWorkDaysColumn);
+
+                    string workDays = replaceDateTimeString(cellWorkDaysColumn.GetValue<string>());
+                    MyWorkDay wd = new MyWorkDay();
+                    wd.workDayCount = workCount;
+                    wd.siteName = sheet.Cell(r, secondExcelSiteNameColumn).Value.ToString();
+                    wd.siteKey = sheet.Cell(r, secondExcelSiteKeyColumn).Value.ToString();
+                    logger.ZLogTrace($"拠点キー:{wd.siteKey}, 工事日数:{workCount}, 工事日:{workDays}");
+                    List<DateTime> listDateTime = new List<DateTime>();
+                    foreach (var day in workDays.Split("|"))
+                    {
+                        try
+                        {
+                            DateTime dt = DateTime.Parse(day);
+                            if (listDateTime.Contains(dt))
+                            {
+                                isAllPass = false;
+                                DateTime errDt = new DateTime(1900,1,1);
+                                listDateTime.Add(errDt);
+                                logger.ZLogError($"[ERROR] 重複した日付を発見しました:{day},key:{wd.siteKey},拠点番号:{wd.siteNumber},拠点名:{wd.siteName}");
+                            }
+                            else
+                            {
+                                listDateTime.Add(dt);
+                            }
+                        }
+                        catch (FormatException)
+                        {
+                            isAllPass = false;
+                            DateTime errDt = new DateTime(1900,1,1);
+                            listDateTime.Add(errDt);
+                            logger.ZLogTrace($"エラー 日付に変換できませんでした:{day},拠点名:{wd.siteName}");
+                        }
+                        catch (System.Exception)
+                        {
+                            isAllPass = false;
+                            throw;
+                        }
+                    }
+                    listDateTime.Sort();
+                    wd.workDays = listDateTime;
+                    if (wd.siteKey.EndsWith(ignoreSiteKeySuffix))
+                    {
+                        continue;
+                    }
+                    dicSecondMyWorkDay.Add(wd.siteKey, wd);
+                }
+            }
+            else
+            {
+                logger.ZLogTrace($"Miss {sheet.Name}");
+            }
+        }
 
 
 //== print
@@ -186,12 +277,146 @@ public class WorkDaysApp : ConsoleAppBase
 //== print day
         printToday(printday);
 
+//== diff
+        diffFirstAndSecond();
+
 //== finish
         if (isAllPass)
         {
             logger.ZLogInformation($"== [Congratulations!] すべての確認項目をパスしました ==");
         }
         logger.ZLogInformation($"==== tool finish ====");
+    }
+
+    private bool isErrorAtDiffList<T>(string name, List<T> list1, List<T> list2)
+    {
+        logger.ZLogTrace($"{string.Join("|", list1)}");
+        logger.ZLogTrace($"{string.Join("|", list2)}");
+
+        bool isError = false;
+        var siteKey12 = list1.Except(list2);
+        var siteKey21 = list2.Except(list1);
+        if (siteKey12.Count() > 0)
+        {
+            isError = true;
+            logger.ZLogInformation($"不一致が発見されました 比較パラメーター:{name} [1st-2nd] {string.Join(",",siteKey12)}");
+        }
+        if (siteKey21.Count() > 0)
+        {
+            isError = true;
+            logger.ZLogInformation($"不一致が発見されました 比較パラメーター:{name} [2nd-1st] {string.Join(",",siteKey21)}");
+        }
+
+        if (isError)
+        {
+            return true;
+        }
+        return false;
+    }
+
+    private bool isErrorAtCompareString(string name, string siteKey, string s1, string s2)
+    {
+        if (!s1.Equals(s2))
+        {
+            logger.ZLogError($"不一致が発見されました ({name}) {siteKey} 1st:{s1} 2nd:{s2}");
+            return true;
+        }
+        return false;
+    }
+
+    private bool isErrorAtCompareInt(string name, string siteKey, int i1, int i2)
+    {
+        if (!i1.Equals(i2))
+        {
+            logger.ZLogError($"不一致が発見されました ({name}) {siteKey} 1st:{i1} 2nd:{i2}");
+            return true;
+        }
+        return false;
+    }
+
+    private bool isErrorAtCompareListDateTime(string name, string siteKey, int i1, int i2)
+    {
+        if (!i1.Equals(i2))
+        {
+            logger.ZLogError($"不一致が発見されました ({name}) {siteKey} 1st:{i1} 2nd:{i2}");
+            return true;
+        }
+        return false;
+    }
+
+    private bool isErrorAtCompareList(string name, string siteKey, List<DateTime> d1, List<DateTime> d2)
+    {
+        bool isError = false;
+
+        if (isErrorAtCompareInt(name+"の合計日数", siteKey, d1.Count, d2.Count))
+        {
+            isError = true;
+        }
+        var siteKeyIntersect = d1.Intersect(d2);
+        var siteKey12 = d1.Except(d2);
+        var siteKey21 = d2.Except(d1);
+        if (siteKeyIntersect.Count() > 0)
+        {
+            logger.ZLogTrace($"一致 ({name}) {siteKey} [1st=2nd] {convertDateTimeToDate(siteKeyIntersect)}");
+        }
+        if (siteKey12.Count() > 0)
+        {
+            isError = true;
+            logger.ZLogInformation($"不一致が発見されました ({name}) {siteKey} [1st-2nd] {convertDateTimeToDate(siteKey12)}");
+        }
+        if (siteKey21.Count() > 0)
+        {
+            isError = true;
+            logger.ZLogInformation($"不一致が発見されました ({name}) {siteKey} [2nd-1st] {convertDateTimeToDate(siteKey21)}");
+        }
+
+        
+        return isError;
+    }
+
+    private void diffFirstAndSecond()
+    {
+        logger.ZLogInformation($"== start 2つのExcelファイルの比較 ==");
+        bool isDateError = false;
+        bool isError = false;
+        string checkStatusAtWork = config.Value.CheckStatusAtWork;
+
+        if (isErrorAtDiffList("拠点キー", dicFirstMyWorkDay.Keys.ToList(), dicSecondMyWorkDay.Keys.ToList()))
+        {
+            isError = true;
+        }
+        foreach (var key in dicFirstMyWorkDay.Keys)
+        {
+            MyWorkDay wd1 = dicFirstMyWorkDay[key];
+            MyWorkDay wd2 = dicSecondMyWorkDay[key];
+            if (checkStatusAtWork.Equals(wd1.status))
+            {
+                if (isErrorAtCompareString("拠点名", key, wd1.siteName, wd2.siteName) |
+                    isErrorAtCompareInt("工事日数", key, wd1.workDayCount, wd2.workDayCount) |
+                    isErrorAtCompareList("工事日", key, wd1.workDays, wd2.workDays) )
+                {
+                    isError = true;
+                }
+            }
+        }
+
+
+
+        if (isDateError)
+        {
+            isAllPass = false;
+            logger.ZLogError($"[ERROR] 日付にエラーが発見されました");
+        }
+        if (isError)
+        {
+            isAllPass = false;
+            logger.ZLogInformation($"[NG] 2つのExcelファイルの不一致が発見されました");
+        }
+        if (!isDateError && !isError)
+        {
+            logger.ZLogInformation($"[OK] 2つのExcelファイルの不一致はありませんでした");
+        }
+        logger.ZLogInformation($"== end 2つのExcelファイルの比較 ==");
     }
 
     private void printToday(string printday)
@@ -205,7 +430,7 @@ public class WorkDaysApp : ConsoleAppBase
             DateTime day = DateTime.Parse(printday);
             sb.AppendLine($"");
             sb.AppendLine($"{convertDateTimeToDateAndDayofweek(day)} の拠点は以下です");
-            foreach (var workDay in listMyWorkDay)
+            foreach (var workDay in dicFirstMyWorkDay.Values.ToList())
             {
                 if (checkStatusAtWork.Equals(workDay.status))
                 {
@@ -243,7 +468,7 @@ public class WorkDaysApp : ConsoleAppBase
         bool isDateError = false;
         bool isError = false;
         string checkStatusAtWork = config.Value.CheckStatusAtWork;
-        foreach (var workDay in listMyWorkDay)
+        foreach (var workDay in dicFirstMyWorkDay.Values.ToList())
         {
             if (checkStatusAtWork.Equals(workDay.status))
             {
@@ -300,7 +525,7 @@ public class WorkDaysApp : ConsoleAppBase
         }
         logger.ZLogTrace($"[checkWorkDayAtDayOfWeek] {bussinessHolidays}");
         logger.ZLogTrace($"[checkWorkDayAtDayOfWeek] {convertDateTimeToDate(dicHolidays.Values.ToList<DateTime>())}");
-        foreach (var workDay in listMyWorkDay)
+        foreach (var workDay in dicFirstMyWorkDay.Values.ToList())
         {
             if (checkStatusAtWork.Equals(workDay.status))
             {
@@ -362,7 +587,7 @@ public class WorkDaysApp : ConsoleAppBase
     private void printMyWorkDays()
     {
         logger.ZLogTrace($"== start print ==");
-        foreach (var workDay in listMyWorkDay)
+        foreach (var workDay in dicFirstMyWorkDay.Values.ToList())
         {
 //            logger.ZLogTrace($"workDayCount:{workDay.workDayCount},workDays:{string.Join(";",workDay.workDays)}");
             logger.ZLogTrace($"siteKey:{workDay.siteKey},siteNumber:{workDay.siteNumber},siteName:{workDay.siteName},status:{workDay.status},workDayCount:{workDay.workDayCount},workDays:{convertDateTimeToDate(workDay.workDays)}");
@@ -382,6 +607,13 @@ public class WorkDaysApp : ConsoleAppBase
             }
         }
         return sb.ToString();
+    }
+
+    private string convertDateTimeToDate(IEnumerable<DateTime> dateTimes)
+    {
+        List<DateTime> tmpList = dateTimes.ToList();
+        tmpList.Sort();
+        return convertDateTimeToDate(tmpList);
     }
 
     private string convertDateTimeToDateAndDayofweek(DateTime day)
@@ -449,6 +681,12 @@ public class MyConfig
     public string CheckStatusAtSurvey {get; set;} = "";
     public string CheckStatusAtWork {get; set;} = "";
     
+    public int SecondExcelFirstDataRow {get; set;} = -1;
+    public int SecondExcelSiteKeyColumn {get; set;} = -1;
+    public int SecondExcelSiteNameColumn {get; set;} = -1;
+    public int SecondExcelWorkDayCountColumn {get; set;} = -1;
+    public int SecondExcelWorkDaysColumn {get; set;} = -1;
+    public string IgnoreSiteKeySuffix {get; set;} = "";
 }
 
 public class MyWorkDay
