@@ -123,15 +123,28 @@ public class WorkDaysApp : ConsoleAppBase
                         case XLDataType.Number:
                             workCount = cellWorkDayCount.GetValue<int>();
                             break;
-                        case XLDataType.Text:
-                            break;
                         default:
-                            logger.ZLogError($"workCount is NOT type ( Number | Text ) at sheet:{sheet.Name} row:{r}");
+                            logger.ZLogError($"workCount is NOT type ( Number ) at sheet:{sheet.Name} row:{r}");
                             continue;
                     }
                     IXLCell cellWorkDaysColumn = sheet.Cell(r, workDaysColumn);
+                    string workDays = "";
+                    switch (cellWorkDaysColumn.DataType)
+                    {
+                        case XLDataType.DateTime:
+                            workDays = cellWorkDaysColumn.GetValue<DateTime>().ToString("yyyy/MM/dd");
+                            break;
+                        case XLDataType.Text:
+                            workDays = replaceDateTimeString(cellWorkDaysColumn.GetValue<string>());
+                            break;
+                        case XLDataType.Blank:
+                            logger.ZLogTrace($"workDays is Blank type at sheet:{sheet.Name} row:{r}");
+                            break;
+                        default:
+                            logger.ZLogError($"workDays is NOT type ( DateTime | Text ) at sheet:{sheet.Name} row:{r}");
+                            continue;
+                    }
 
-                    string workDays = replaceDateTimeString(cellWorkDaysColumn.GetValue<string>());
                     MyWorkDay wd = new MyWorkDay();
                     wd.workDayCount = workCount;
                     wd.siteNumber = sheet.Cell(r, siteNumberColumn).Value.ToString();
@@ -204,15 +217,29 @@ public class WorkDaysApp : ConsoleAppBase
                         case XLDataType.Number:
                             workCount = cellWorkDayCount.GetValue<int>();
                             break;
-                        case XLDataType.Text:
-                            break;
                         default:
-                            logger.ZLogError($"workCount is NOT type ( Number | Text ) at sheet:{sheet.Name} row:{r}");
+                            logger.ZLogError($"workCount is NOT type ( Number ) at sheet:{sheet.Name} row:{r}");
                             continue;
                     }
                     IXLCell cellWorkDaysColumn = sheet.Cell(r, secondExcelWorkDaysColumn);
+ //                   IXLCell cellWorkDaysColumn = sheet.Cell(r, workDaysColumn);
+                    string workDays = "";
+                    switch (cellWorkDaysColumn.DataType)
+                    {
+                        case XLDataType.DateTime:
+                            workDays = cellWorkDaysColumn.GetValue<DateTime>().ToString("yyyy/MM/dd");
+                            break;
+                        case XLDataType.Text:
+                            workDays = replaceDateTimeString(cellWorkDaysColumn.GetValue<string>());
+                            break;
+                        case XLDataType.Blank:
+                            logger.ZLogTrace($"workDays is Blank type at sheet:{sheet.Name} row:{r}");
+                            break;
+                        default:
+                            logger.ZLogError($"workDays is NOT type ( DateTime | Text ) at sheet:{sheet.Name} row:{r}");
+                            continue;
+                    }
 
-                    string workDays = replaceDateTimeString(cellWorkDaysColumn.GetValue<string>());
                     MyWorkDay wd = new MyWorkDay();
                     wd.workDayCount = workCount;
                     wd.siteName = sheet.Cell(r, secondExcelSiteNameColumn).Value.ToString();
@@ -299,12 +326,12 @@ public class WorkDaysApp : ConsoleAppBase
         if (siteKey12.Count() > 0)
         {
             isError = true;
-            logger.ZLogInformation($"不一致が発見されました 比較パラメーター:{name} [1st-2nd] {string.Join(",",siteKey12)}");
+            logger.ZLogInformation($"不一致が発見されました 比較パラメーター:{name} [1st-2nd] {string.Join("|",siteKey12)}");
         }
         if (siteKey21.Count() > 0)
         {
             isError = true;
-            logger.ZLogInformation($"不一致が発見されました 比較パラメーター:{name} [2nd-1st] {string.Join(",",siteKey21)}");
+            logger.ZLogInformation($"不一致が発見されました 比較パラメーター:{name} [2nd-1st] {string.Join("|",siteKey21)}");
         }
 
         if (isError)
@@ -443,7 +470,7 @@ public class WorkDaysApp : ConsoleAppBase
                     int index = workDay.workDays.IndexOf(day)+1;
                     if (index > 0)
                     {
-                        sb.AppendLine($"{workDay.siteNumber}_{workDay.siteName} ({index})");
+                        sb.AppendLine($"{workDay.siteName} ({index})");
                     }
                 }
             }
@@ -603,7 +630,7 @@ public class WorkDaysApp : ConsoleAppBase
             sb.Append(listDateTime[i].ToString("yyyy/MM/dd"));
             if (i < listDateTime.Count - 1)
             {
-                sb.Append(" & ");
+                sb.Append("|");
             }
         }
         return sb.ToString();
