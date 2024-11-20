@@ -104,6 +104,12 @@ public class WorkDaysApp : ConsoleAppBase
         int secondExcelWorkDaysColumn = config.Value.SecondExcelWorkDaysColumn;
         string ignoreSiteKeySuffix = config.Value.IgnoreSiteKeySuffix;
 
+        Dictionary<string,string> dicIgnoreFirstExcelAtSiteKey = new Dictionary<string, string>();
+        string ignoreFirstExcelAtSiteKey = config.Value.IgnoreFirstExcelAtSiteKey;
+        foreach (var ignore in ignoreFirstExcelAtSiteKey.Split(','))
+        {
+            dicIgnoreFirstExcelAtSiteKey.Add(ignore, "");
+        }
         FileStream fsFirstExcel = new FileStream(firstexcel, FileMode.Open, FileAccess.Read, FileShare.Read);
         using XLWorkbook xlWorkbookFristExcel = new XLWorkbook(fsFirstExcel);
         IXLWorksheets sheetsFristExcel = xlWorkbookFristExcel.Worksheets;
@@ -152,44 +158,51 @@ public class WorkDaysApp : ConsoleAppBase
                     wd.siteKey = sheet.Cell(r, siteKeyColumn).Value.ToString();
                     wd.status = sheet.Cell(r, statusColumn).Value.ToString();
                     logger.ZLogTrace($"拠点キー:{wd.siteKey}, 工事日数:{workCount}, 工事日:{workDays}");
-                    List<DateTime> listDateTime = new List<DateTime>();
-                    foreach (var day in workDays.Split("|"))
+                    if (isIgnoreSiteKey(wd.siteKey, dicIgnoreFirstExcelAtSiteKey))
                     {
-                        try
+                        logger.ZLogTrace($"[FitstExcel] 除外しました {wd.siteKey}");
+                    }
+                    else
+                    {
+                        List<DateTime> listDateTime = new List<DateTime>();
+                        foreach (var day in workDays.Split("|"))
                         {
-                            DateTime dt = DateTime.Parse(day);
-                            if (listDateTime.Contains(dt))
+                            try
+                            {
+                                DateTime dt = DateTime.Parse(day);
+                                if (listDateTime.Contains(dt))
+                                {
+                                    isAllPass = false;
+                                    DateTime errDt = new DateTime(1900,1,1);
+                                    listDateTime.Add(errDt);
+                                    logger.ZLogError($"[ERROR] 重複した日付を発見しました:{day},key:{wd.siteKey},拠点番号:{wd.siteNumber},拠点名:{wd.siteName}");
+                                }
+                                else
+                                {
+                                    listDateTime.Add(dt);
+                                }
+                            }
+                            catch (FormatException)
                             {
                                 isAllPass = false;
                                 DateTime errDt = new DateTime(1900,1,1);
                                 listDateTime.Add(errDt);
-                                logger.ZLogError($"[ERROR] 重複した日付を発見しました:{day},key:{wd.siteKey},拠点番号:{wd.siteNumber},拠点名:{wd.siteName}");
+                                logger.ZLogTrace($"エラー 日付に変換できませんでした:{day},拠点名:{wd.siteName}");
                             }
-                            else
+                            catch (System.Exception)
                             {
-                                listDateTime.Add(dt);
+                                isAllPass = false;
+                                throw;
                             }
                         }
-                        catch (FormatException)
+                        listDateTime.Sort();
+                        wd.workDays = listDateTime;
+                        if (wd.siteKey.EndsWith(ignoreSiteKeySuffix))
                         {
-                            isAllPass = false;
-                            DateTime errDt = new DateTime(1900,1,1);
-                            listDateTime.Add(errDt);
-                            logger.ZLogTrace($"エラー 日付に変換できませんでした:{day},拠点名:{wd.siteName}");
+                            continue;
                         }
-                        catch (System.Exception)
-                        {
-                            isAllPass = false;
-                            throw;
-                        }
+                        dicFirstMyWorkDay.Add(wd.siteKey, wd);
                     }
-                    listDateTime.Sort();
-                    wd.workDays = listDateTime;
-                    if (wd.siteKey.EndsWith(ignoreSiteKeySuffix))
-                    {
-                        continue;
-                    }
-                    dicFirstMyWorkDay.Add(wd.siteKey, wd);
                 }
             }
             else
@@ -198,6 +211,12 @@ public class WorkDaysApp : ConsoleAppBase
             }
         }
 
+        Dictionary<string,string> dicIgnoreSecondExcelAtSiteKey = new Dictionary<string, string>();
+        string ignoreSecondExcelAtSiteKey = config.Value.IgnoreSecondExcelAtSiteKey;
+        foreach (var ignore in ignoreSecondExcelAtSiteKey.Split(','))
+        {
+            dicIgnoreSecondExcelAtSiteKey.Add(ignore, "");
+        }
         FileStream fsSecondExcel = new FileStream(secondexcel, FileMode.Open, FileAccess.Read, FileShare.Read);
         using XLWorkbook xlWorkbookSecondExcel = new XLWorkbook(fsSecondExcel);
         IXLWorksheets sheetsSecondExcel = xlWorkbookSecondExcel.Worksheets;
@@ -245,44 +264,51 @@ public class WorkDaysApp : ConsoleAppBase
                     wd.siteName = sheet.Cell(r, secondExcelSiteNameColumn).Value.ToString();
                     wd.siteKey = sheet.Cell(r, secondExcelSiteKeyColumn).Value.ToString();
                     logger.ZLogTrace($"拠点キー:{wd.siteKey}, 工事日数:{workCount}, 工事日:{workDays}");
-                    List<DateTime> listDateTime = new List<DateTime>();
-                    foreach (var day in workDays.Split("|"))
+                    if (isIgnoreSiteKey(wd.siteKey, dicIgnoreFirstExcelAtSiteKey))
                     {
-                        try
+                        logger.ZLogTrace($"[SecondExcel] 除外しました {wd.siteKey}");
+                    }
+                    else
+                    {
+                        List<DateTime> listDateTime = new List<DateTime>();
+                        foreach (var day in workDays.Split("|"))
                         {
-                            DateTime dt = DateTime.Parse(day);
-                            if (listDateTime.Contains(dt))
+                            try
+                            {
+                                DateTime dt = DateTime.Parse(day);
+                                if (listDateTime.Contains(dt))
+                                {
+                                    isAllPass = false;
+                                    DateTime errDt = new DateTime(1900,1,1);
+                                    listDateTime.Add(errDt);
+                                    logger.ZLogError($"[ERROR] 重複した日付を発見しました:{day},key:{wd.siteKey},拠点番号:{wd.siteNumber},拠点名:{wd.siteName}");
+                                }
+                                else
+                                {
+                                    listDateTime.Add(dt);
+                                }
+                            }
+                            catch (FormatException)
                             {
                                 isAllPass = false;
                                 DateTime errDt = new DateTime(1900,1,1);
                                 listDateTime.Add(errDt);
-                                logger.ZLogError($"[ERROR] 重複した日付を発見しました:{day},key:{wd.siteKey},拠点番号:{wd.siteNumber},拠点名:{wd.siteName}");
+                                logger.ZLogTrace($"エラー 日付に変換できませんでした:{day},拠点名:{wd.siteName}");
                             }
-                            else
+                            catch (System.Exception)
                             {
-                                listDateTime.Add(dt);
+                                isAllPass = false;
+                                throw;
                             }
                         }
-                        catch (FormatException)
+                        listDateTime.Sort();
+                        wd.workDays = listDateTime;
+                        if (wd.siteKey.EndsWith(ignoreSiteKeySuffix))
                         {
-                            isAllPass = false;
-                            DateTime errDt = new DateTime(1900,1,1);
-                            listDateTime.Add(errDt);
-                            logger.ZLogTrace($"エラー 日付に変換できませんでした:{day},拠点名:{wd.siteName}");
+                            continue;
                         }
-                        catch (System.Exception)
-                        {
-                            isAllPass = false;
-                            throw;
-                        }
+                        dicSecondMyWorkDay.Add(wd.siteKey, wd);
                     }
-                    listDateTime.Sort();
-                    wd.workDays = listDateTime;
-                    if (wd.siteKey.EndsWith(ignoreSiteKeySuffix))
-                    {
-                        continue;
-                    }
-                    dicSecondMyWorkDay.Add(wd.siteKey, wd);
                 }
             }
             else
@@ -399,6 +425,11 @@ public class WorkDaysApp : ConsoleAppBase
 
         
         return isError;
+    }
+
+    private bool isIgnoreSiteKey(string siteKey, Dictionary<string,string> dicIgnore)
+    {
+        return dicIgnore.ContainsKey(siteKey);
     }
 
     private void diffFirstAndSecond()
@@ -714,6 +745,8 @@ public class MyConfig
     public int SecondExcelWorkDayCountColumn {get; set;} = -1;
     public int SecondExcelWorkDaysColumn {get; set;} = -1;
     public string IgnoreSiteKeySuffix {get; set;} = "";
+    public string IgnoreFirstExcelAtSiteKey {get; set;} = "";
+    public string IgnoreSecondExcelAtSiteKey {get; set;} = "";
 }
 
 public class MyWorkDay
