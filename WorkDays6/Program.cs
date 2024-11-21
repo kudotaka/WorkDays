@@ -130,7 +130,7 @@ public class WorkDaysApp : ConsoleAppBase
                             workCount = cellWorkDayCount.GetValue<int>();
                             break;
                         default:
-                            logger.ZLogError($"workCount is NOT type ( Number ) at sheet:{sheet.Name} row:{r}");
+                            logger.ZLogError($"workCount is NOT type ( Number ) at siteKey]{sheet.Cell(r, siteKeyColumn).Value.ToString()} sheet:{sheet.Name} row:{r}");
                             continue;
                     }
                     IXLCell cellWorkDaysColumn = sheet.Cell(r, workDaysColumn);
@@ -154,7 +154,7 @@ public class WorkDaysApp : ConsoleAppBase
                     MyWorkDay wd = new MyWorkDay();
                     wd.workDayCount = workCount;
                     wd.siteNumber = sheet.Cell(r, siteNumberColumn).Value.ToString();
-                    wd.siteName = sheet.Cell(r, siteNameColumn).Value.ToString();
+                    wd.siteName = convertZero(sheet.Cell(r, siteNameColumn).Value.ToString());
                     wd.siteKey = sheet.Cell(r, siteKeyColumn).Value.ToString();
                     wd.status = sheet.Cell(r, statusColumn).Value.ToString();
                     logger.ZLogTrace($"拠点キー:{wd.siteKey}, 工事日数:{workCount}, 工事日:{workDays}");
@@ -237,7 +237,7 @@ public class WorkDaysApp : ConsoleAppBase
                             workCount = cellWorkDayCount.GetValue<int>();
                             break;
                         default:
-                            logger.ZLogError($"workCount is NOT type ( Number ) at sheet:{sheet.Name} row:{r}");
+                            logger.ZLogError($"workCount is NOT type ( Number ) at siteKey]{sheet.Cell(r, siteKeyColumn).Value.ToString()} sheet:{sheet.Name} row:{r}");
                             continue;
                     }
                     IXLCell cellWorkDaysColumn = sheet.Cell(r, secondExcelWorkDaysColumn);
@@ -261,7 +261,7 @@ public class WorkDaysApp : ConsoleAppBase
 
                     MyWorkDay wd = new MyWorkDay();
                     wd.workDayCount = workCount;
-                    wd.siteName = sheet.Cell(r, secondExcelSiteNameColumn).Value.ToString();
+                    wd.siteName = convertZero(sheet.Cell(r, secondExcelSiteNameColumn).Value.ToString());
                     wd.siteKey = sheet.Cell(r, secondExcelSiteKeyColumn).Value.ToString();
                     logger.ZLogTrace($"拠点キー:{wd.siteKey}, 工事日数:{workCount}, 工事日:{workDays}");
                     if (isIgnoreSiteKey(wd.siteKey, dicIgnoreFirstExcelAtSiteKey))
@@ -339,6 +339,35 @@ public class WorkDaysApp : ConsoleAppBase
             logger.ZLogInformation($"== [Congratulations!] すべての確認項目をパスしました ==");
         }
         logger.ZLogInformation($"==== tool finish ====");
+    }
+
+    private string convertZero(string target)
+    {
+        int index = target.IndexOf('-');
+        switch (index)
+        {
+            case 1:
+                return "000"+target;
+            case 2:
+                return "00"+target;
+            case 3:
+                return "0"+target;
+            default:
+                break;
+        }
+        int index2 = target.IndexOf('_');
+        switch (index2)
+        {
+            case 1:
+                return "000"+target;
+            case 2:
+                return "00"+target;
+            case 3:
+                return "0"+target;
+            default:
+                break;
+        }
+        return target;
     }
 
     private bool isErrorAtDiffList<T>(string name, List<T> list1, List<T> list2)
@@ -488,6 +517,7 @@ public class WorkDaysApp : ConsoleAppBase
             DateTime day = DateTime.Parse(printday);
             sb.AppendLine($"");
             sb.AppendLine($"{convertDateTimeToDateAndDayofweek(day)} の拠点は以下です");
+            sb.AppendLine($"");
             foreach (var workDay in dicFirstMyWorkDay.Values.ToList())
             {
                 if (checkStatusAtWork.Equals(workDay.status))
@@ -499,9 +529,10 @@ public class WorkDaysApp : ConsoleAppBase
                         continue;
                     }
                     int index = workDay.workDays.IndexOf(day)+1;
+                    int max = workDay.workDays.Count;
                     if (index > 0)
                     {
-                        sb.AppendLine($"{workDay.siteName} ({index})");
+                        sb.AppendLine($"{workDay.siteName} ({index}/{max})");
                     }
                 }
             }
