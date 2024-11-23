@@ -475,15 +475,23 @@ public class WorkDaysApp : ConsoleAppBase
         foreach (var key in dicFirstMyWorkDay.Keys)
         {
             MyWorkDay wd1 = dicFirstMyWorkDay[key];
-            MyWorkDay wd2 = dicSecondMyWorkDay[key];
-            if (checkStatusAtWork.Equals(wd1.status))
+            if (dicSecondMyWorkDay.ContainsKey(key))
             {
-                if (isErrorAtCompareString("拠点名", key, wd1.siteName, wd2.siteName) |
-                    isErrorAtCompareInt("工事日数", key, wd1.workDayCount, wd2.workDayCount) |
-                    isErrorAtCompareList("工事日", key, wd1.workDays, wd2.workDays) )
+                MyWorkDay wd2 = dicSecondMyWorkDay[key];
+                if (checkStatusAtWork.Equals(wd1.status))
                 {
-                    isError = true;
+                    if (isErrorAtCompareString("拠点名", key, wd1.siteName, wd2.siteName) |
+                        isErrorAtCompareInt("工事日数", key, wd1.workDayCount, wd2.workDayCount) |
+                        isErrorAtCompareList("工事日", key, wd1.workDays, wd2.workDays) )
+                    {
+                        isError = true;
+                    }
                 }
+            }
+            else
+            {
+                isError = true;
+                logger.ZLogError($"[ERROR] 2つ目のExcelに拠点キー({key})が見つかりませんでした");
             }
         }
 
@@ -510,43 +518,46 @@ public class WorkDaysApp : ConsoleAppBase
     {
         logger.ZLogInformation($"== start 工事日の拠点 ==");
         bool isDateError = false;
-        StringBuilder sb = new StringBuilder();
         string checkStatusAtWork = config.Value.CheckStatusAtWork;
-        try
+        foreach (var targetday in printday.Split('|'))
         {
-            DateTime day = DateTime.Parse(printday);
-            sb.AppendLine($"");
-            sb.AppendLine($"{convertDateTimeToDateAndDayofweek(day)} の拠点は以下です");
-            sb.AppendLine($"");
-            foreach (var workDay in dicFirstMyWorkDay.Values.ToList())
+            StringBuilder sb = new StringBuilder();
+            try
             {
-                if (checkStatusAtWork.Equals(workDay.status))
+                DateTime day = DateTime.Parse(targetday);
+                sb.AppendLine($"");
+                sb.AppendLine($"{convertDateTimeToDateAndDayofweek(day)} の拠点は以下です");
+                sb.AppendLine($"");
+                foreach (var workDay in dicFirstMyWorkDay.Values.ToList())
                 {
-                    if (workDay.workDays.Contains(new DateTime(1900,1,1)))
+                    if (checkStatusAtWork.Equals(workDay.status))
                     {
-                        isDateError = true;
-                        logger.ZLogError($"日付エラー key:{workDay.siteKey},拠点番号:{workDay.siteNumber},拠点名:{workDay.siteName},工事日:{convertDateTimeToDate(workDay.workDays)}");
-                        continue;
-                    }
-                    int index = workDay.workDays.IndexOf(day)+1;
-                    int max = workDay.workDays.Count;
-                    if (index > 0)
-                    {
-                        sb.AppendLine($"{workDay.siteName} ({index}/{max})");
+                        if (workDay.workDays.Contains(new DateTime(1900,1,1)))
+                        {
+                            isDateError = true;
+                            logger.ZLogError($"日付エラー key:{workDay.siteKey},拠点番号:{workDay.siteNumber},拠点名:{workDay.siteName},工事日:{convertDateTimeToDate(workDay.workDays)}");
+                            continue;
+                        }
+                        int index = workDay.workDays.IndexOf(day)+1;
+                        int max = workDay.workDays.Count;
+                        if (index > 0)
+                        {
+                            sb.AppendLine($"{workDay.siteName} ({index}/{max})");
+                        }
                     }
                 }
+                logger.ZLogInformation($"{sb.ToString()}");
             }
-            logger.ZLogInformation($"{sb.ToString()}");
-        }
-        catch (FormatException)
-        {
-            isAllPass = false;
-            logger.LogError($"[NG] エラー 日付に変換できませんでした:{printday}");
-        }
-        catch (System.Exception)
-        {
-            isAllPass = false;
-            throw;
+            catch (FormatException)
+            {
+                isAllPass = false;
+                logger.LogError($"[NG] エラー 日付に変換できませんでした:{printday}");
+            }
+            catch (System.Exception)
+            {
+                isAllPass = false;
+                throw;
+            }
         }
         logger.ZLogInformation($"== end 工事日の拠点 ==");
     }
@@ -678,8 +689,7 @@ public class WorkDaysApp : ConsoleAppBase
         logger.ZLogTrace($"== start print ==");
         foreach (var workDay in dicFirstMyWorkDay.Values.ToList())
         {
-//            logger.ZLogTrace($"workDayCount:{workDay.workDayCount},workDays:{string.Join(";",workDay.workDays)}");
-            logger.ZLogTrace($"siteKey:{workDay.siteKey},siteNumber:{workDay.siteNumber},siteName:{workDay.siteName},status:{workDay.status},workDayCount:{workDay.workDayCount},workDays:{convertDateTimeToDate(workDay.workDays)}");
+            logger.ZLogDebug($"キー:{workDay.siteKey},拠点名:{workDay.siteName},ステータス:{workDay.status},工事日:{workDay.workDayCount},workDays:{convertDateTimeToDate(workDay.workDays)}");
         }
         logger.ZLogTrace($"== end print ==");
     }
