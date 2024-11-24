@@ -264,7 +264,7 @@ public class WorkDaysApp : ConsoleAppBase
                     wd.siteName = convertZero(sheet.Cell(r, secondExcelSiteNameColumn).Value.ToString());
                     wd.siteKey = sheet.Cell(r, secondExcelSiteKeyColumn).Value.ToString();
                     logger.ZLogTrace($"拠点キー:{wd.siteKey}, 工事日数:{workCount}, 工事日:{workDays}");
-                    if (isIgnoreSiteKey(wd.siteKey, dicIgnoreFirstExcelAtSiteKey))
+                    if (isIgnoreSiteKey(wd.siteKey, dicIgnoreSecondExcelAtSiteKey))
                     {
                         logger.ZLogTrace($"[SecondExcel] 除外しました {wd.siteKey}");
                     }
