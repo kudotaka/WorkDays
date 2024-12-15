@@ -73,7 +73,7 @@ public class WorkDaysApp : ConsoleAppBase
     }
 
 //    [Command("")]
-    public void Days(string firstexcel, string secondexcel, string printday)
+    public void Days(string firstexcel, string secondexcel, string printday, bool secondlastrowauto = true)
     {
 //== start
         logger.ZLogInformation($"==== tool {getMyFileVersion()} ====");
@@ -110,7 +110,7 @@ public class WorkDaysApp : ConsoleAppBase
         {
             dicIgnoreFirstExcelAtSiteKey.Add(ignore, "");
         }
-        FileStream fsFirstExcel = new FileStream(firstexcel, FileMode.Open, FileAccess.Read, FileShare.Read);
+        using FileStream fsFirstExcel = new FileStream(firstexcel, FileMode.Open, FileAccess.Read, FileShare.Read);
         using XLWorkbook xlWorkbookFristExcel = new XLWorkbook(fsFirstExcel);
         IXLWorksheets sheetsFristExcel = xlWorkbookFristExcel.Worksheets;
         foreach (IXLWorksheet? sheet in sheetsFristExcel)
@@ -217,14 +217,22 @@ public class WorkDaysApp : ConsoleAppBase
         {
             dicIgnoreSecondExcelAtSiteKey.Add(ignore, "");
         }
-        FileStream fsSecondExcel = new FileStream(secondexcel, FileMode.Open, FileAccess.Read, FileShare.Read);
+        using FileStream fsSecondExcel = new FileStream(secondexcel, FileMode.Open, FileAccess.Read, FileShare.Read);
         using XLWorkbook xlWorkbookSecondExcel = new XLWorkbook(fsSecondExcel);
         IXLWorksheets sheetsSecondExcel = xlWorkbookSecondExcel.Worksheets;
         foreach (IXLWorksheet? sheet in sheetsSecondExcel)
         {
             if (secondExcelSheetName.Equals(sheet.Name))
             {
-                int lastUsedRowNumber = sheet.LastRowUsed() == null ? 0 : sheet.LastRowUsed().RowNumber();
+                int lastUsedRowNumber = 0;
+                if (secondlastrowauto)
+                {
+                    lastUsedRowNumber = sheet.LastRowUsed() == null ? 0 : sheet.LastRowUsed().RowNumber();
+                }
+                else
+                {
+                    lastUsedRowNumber = config.Value.SecondExcelLastDataRow;
+                }
                 logger.ZLogInformation($"secondexcel シート名:{sheet.Name}, 最後の行:{lastUsedRowNumber}");
 
                 for (int r = secondExcelFirstDataRow; r < lastUsedRowNumber + 1; r++)
@@ -781,6 +789,7 @@ public class MyConfig
     public string CheckStatusAtWork {get; set;} = "";
     
     public int SecondExcelFirstDataRow {get; set;} = -1;
+    public int SecondExcelLastDataRow {get; set;} = -1;
     public int SecondExcelSiteKeyColumn {get; set;} = -1;
     public int SecondExcelSiteNameColumn {get; set;} = -1;
     public int SecondExcelWorkDayCountColumn {get; set;} = -1;
