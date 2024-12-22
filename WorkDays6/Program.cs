@@ -73,6 +73,83 @@ public class WorkDaysApp : ConsoleAppBase
     }
 
 //    [Command("")]
+    public void Analyze(string secondexcel, bool secondlastrowauto = true)
+    {
+        logger.ZLogInformation($"==== analyze {getMyFileVersion()} ====");
+        if (!File.Exists(secondexcel))
+        {
+            logger.ZLogError($"[NG] second excel file is missing.");
+            return;
+        }
+
+        string secondExcelSheetName = config.Value.SecondExcelSheetName;
+        int secondExcelFirstDataRow = config.Value.SecondExcelFirstDataRow;
+        int secondExcelSiteKeyColumn = config.Value.SecondExcelSiteKeyColumn;
+        int secondExcelSiteNameColumn = config.Value.SecondExcelSiteNameColumn;
+        int secondExcelWorkDayCountColumn = config.Value.SecondExcelWorkDayCountColumn;
+        int secondExcelWorkDaysColumn = config.Value.SecondExcelWorkDaysColumn;
+        using FileStream fsSecondExcel = new FileStream(secondexcel, FileMode.Open, FileAccess.Read, FileShare.Read);
+        using XLWorkbook xlWorkbookSecondExcel = new XLWorkbook(fsSecondExcel);
+        IXLWorksheets sheetsSecondExcel = xlWorkbookSecondExcel.Worksheets;
+        foreach (IXLWorksheet? sheet in sheetsSecondExcel)
+        {
+            if (secondExcelSheetName.Equals(sheet.Name))
+            {
+                int lastUsedRowNumber = 0;
+                if (secondlastrowauto)
+                {
+                    lastUsedRowNumber = sheet.LastRowUsed() == null ? 0 : sheet.LastRowUsed().RowNumber();
+                }
+                else
+                {
+                    lastUsedRowNumber = config.Value.SecondExcelLastDataRow;
+                }
+                logger.ZLogInformation($"secondexcel シート名:{sheet.Name}, 最後の行:{lastUsedRowNumber}");
+
+                for (int r = secondExcelFirstDataRow; r < lastUsedRowNumber + 1; r++)
+                {
+                    IXLCell cellWorkDayCount = sheet.Cell(r, secondExcelWorkDayCountColumn);
+                    printCellType("WorkDayCount", sheet.Name, r, cellWorkDayCount);
+
+                    IXLCell cellWorkDays = sheet.Cell(r, secondExcelWorkDaysColumn);
+                    printCellType("WorkDays", sheet.Name, r, cellWorkDays);
+
+                    IXLCell cellSiteName = sheet.Cell(r, secondExcelSiteNameColumn);
+                    printCellType("SiteName", sheet.Name, r, cellSiteName);
+
+                    IXLCell cellSiteKey = sheet.Cell(r, secondExcelSiteKeyColumn);
+                    printCellType("SiteKey", sheet.Name, r, cellSiteKey);
+                }
+            }
+            else
+            {
+                logger.ZLogError($"[ERROR] Miss {sheet.Name}");
+            }
+        }
+    }
+
+    private void printCellType(string columnName, string sheetName, int row, IXLCell cell)
+    {
+        switch (cell.DataType)
+        {
+            case XLDataType.DateTime:
+                logger.ZLogDebug($"シート名:{sheetName} 行:{row} {columnName} is DateTime type. 値:{cell.GetValue<DateTime>().ToString("yyyy/MM/dd")}");
+                break;
+            case XLDataType.Text:
+                logger.ZLogDebug($"シート名:{sheetName} 行:{row} {columnName} is Text type. 値:{cell.GetValue<string>()}");
+                break;
+            case XLDataType.Number:
+                logger.ZLogDebug($"シート名:{sheetName} 行:{row} {columnName} is Number type. 値:{cell.GetValue<int>()}");
+                break;
+            case XLDataType.Blank:
+                logger.ZLogDebug($"シート名:{sheetName} 行:{row} {columnName} is Blank type.");
+                break;
+            default:
+                logger.ZLogDebug($"シート名:{sheetName} 行:{row} {columnName} is 'unknown' type.");
+                break;
+        }
+    }
+
     public void Days(string firstexcel, string secondexcel, string printday, bool secondlastrowauto = true)
     {
 //== start
